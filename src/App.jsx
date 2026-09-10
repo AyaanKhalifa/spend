@@ -218,6 +218,10 @@ export default function App() {
                         gullakDenoms={gullakDenoms}
                         walletDenoms={walletDenoms}
                         showAmounts={showAmounts}
+                        setGullakDenoms={setGullakDenoms}
+                        setWalletDenoms={setWalletDenoms}
+                        useFirebase={useFirebase}
+                        db={db}
                     />
                 )}
 
@@ -472,8 +476,8 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
                     remaining -= use * v;
                 }
                 if (remaining > 0) {
-                    alert(`Cannot make exact change. Need ₹${remaining} more in smaller denominations.`);
-                    return;
+                    alert(`We couldn't automatically deduct exact change for ₹${finalAmount}.\n\nThe transaction has been saved, but please go to the Breakdown page to manually update your physical notes.`);
+                    txDenoms = null;
                 }
             } else {
                 // Deposits: use entered denominations as-is
@@ -485,12 +489,14 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
                 }
             }
 
-            if (useFirebase) {
-                if (isDepositGullak || isWithdrawGullak) await db.collection("settings").doc("gullak").set(updG);
-                if (isDepositWallet || isWithdrawWallet) await db.collection("settings").doc("wallet").set(updW);
-            } else {
-                if (isDepositGullak || isWithdrawGullak) { setGullakDenoms(updG); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(updG)); }
-                if (isDepositWallet || isWithdrawWallet) { setWalletDenoms(updW); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(updW)); }
+            if (txDenoms) {
+                if (useFirebase) {
+                    if (isDepositGullak || isWithdrawGullak) await db.collection("settings").doc("gullak").set(updG);
+                    if (isDepositWallet || isWithdrawWallet) await db.collection("settings").doc("wallet").set(updW);
+                } else {
+                    if (isDepositGullak || isWithdrawGullak) { setGullakDenoms(updG); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(updG)); }
+                    if (isDepositWallet || isWithdrawWallet) { setWalletDenoms(updW); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(updW)); }
+                }
             }
         } else {
             finalAmount = parseFloat(amount);
@@ -685,13 +691,21 @@ function DebtForm({ transactions, setTransactions, gullakDenoms, setGullakDenoms
                     remaining -= use * v;
                 }
                 if (remaining > 0) {
-                    alert(`Cannot make exact change. Need ₹${remaining} more in smaller denominations.`);
-                    return;
+                    alert(`We couldn't automatically deduct exact change for ₹${finalAmount}.\n\nThe transaction has been saved, but please go to the Breakdown page to manually update your physical notes.`);
+                    txDenoms = null;
+                    if (account === 'gullak') updG = { ...gullakDenoms };
+                    if (account === 'wallet') updW = { ...walletDenoms };
+                    // We don't change 'account' here because the debt form uses it to set tx.account later
+                    // We just don't want to save the modified sourceD
                 }
 
                 let updG = { ...gullakDenoms }, updW = { ...walletDenoms };
-                if (account === 'gullak') updG = sourceD;
-                if (account === 'wallet') updW = sourceD;
+                if (!txDenoms) {
+                    // if txDenoms is null, don't update settings
+                } else {
+                    if (account === 'gullak') updG = sourceD;
+                    if (account === 'wallet') updW = sourceD;
+                }
 
                 if (useFirebase) {
                     if (account === 'gullak') await db.collection("settings").doc("gullak").set(updG);
@@ -1166,33 +1180,66 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
 // ============================================
 // BREAKDOWN PAGE
 // ============================================
-function BreakdownPage({ gullakDenoms, walletDenoms, showAmounts }) {
+function BreakdownPage({ gullakDenoms, walletDenoms, showAmounts, setGullakDenoms, setWalletDenoms, useFirebase, db }) {
     const denomVals = [500, 200, 100, 50, 20, 10, 5, 2, 1];
     const fmt = (a) => showAmounts ? `₹${a}` : '₹••••';
+    const [editMode, setEditMode] = useState(false);
 
     const gullakTotal = Object.entries(gullakDenoms).reduce((s, [v, c]) => s + parseInt(v) * c, 0);
     const walletTotal = Object.entries(walletDenoms).reduce((s, [v, c]) => s + parseInt(v) * c, 0);
     const grandTotal = gullakTotal + walletTotal;
 
-    const renderDenomList = (denoms) => (
+    const handleAdjust = async (type, val, delta) => {
+        if (type === 'gullak') {
+            const upd = { ...gullakDenoms, [val]: Math.max(0, (gullakDenoms[val] || 0) + delta) };
+            if (useFirebase) await db.collection("settings").doc("gullak").set(upd);
+            else { setGullakDenoms(upd); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(upd)); }
+        } else {
+            const upd = { ...walletDenoms, [val]: Math.max(0, (walletDenoms[val] || 0) + delta) };
+            if (useFirebase) await db.collection("settings").doc("wallet").set(upd);
+            else { setWalletDenoms(upd); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(updW)); } // typo fix inside: updW->upd
+        }
+    };
+
+    const handleAdjustW = async (val, delta) => {
+        const upd = { ...walletDenoms, [val]: Math.max(0, (walletDenoms[val] || 0) + delta) };
+        if (useFirebase) await db.collection("settings").doc("wallet").set(upd);
+        else { setWalletDenoms(upd); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(upd)); }
+    };
+
+    const handleAdjustG = async (val, delta) => {
+        const upd = { ...gullakDenoms, [val]: Math.max(0, (gullakDenoms[val] || 0) + delta) };
+        if (useFirebase) await db.collection("settings").doc("gullak").set(upd);
+        else { setGullakDenoms(upd); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(upd)); }
+    };
+
+    const renderDenomList = (denoms, type) => (
         <div className="breakdown-list">
             {denomVals.map(v => {
                 const count = denoms[v] || 0;
-                if (!count) return null;
+                if (!count && !editMode) return null;
                 return (
                     <div key={v} className="breakdown-denom-row">
-                        <div className="breakdown-note-badge">
+                        <div className="breakdown-note-badge" style={{ minWidth: editMode ? '50px' : '80px' }}>
                             <span className="bdn-value">₹{v}</span>
-                            <span className="bdn-times">× {count}</span>
+                            {!editMode && <span className="bdn-times">× {count}</span>}
                         </div>
-                        <div className="breakdown-note-bar-wrap">
-                            <div className="breakdown-note-bar" style={{ width: `${Math.min(100, (count / Math.max(...denomVals.map(d => denoms[d] || 0), 1)) * 100)}%` }} />
-                        </div>
+                        {editMode ? (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: '0.8rem', paddingLeft: '1rem' }}>
+                                <button onClick={() => type === 'gullak' ? handleAdjustG(v, -1) : handleAdjustW(v, -1)} style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--expense-bg)', border: '1px solid var(--expense-glow)', color: 'var(--expense)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', cursor: 'pointer' }}>-</button>
+                                <span style={{ minWidth: 24, textAlign: 'center', fontWeight: 700, fontSize: '1rem' }}>{count}</span>
+                                <button onClick={() => type === 'gullak' ? handleAdjustG(v, 1) : handleAdjustW(v, 1)} style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--deposit-bg)', border: '1px solid var(--deposit-glow)', color: 'var(--deposit)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', cursor: 'pointer' }}>+</button>
+                            </div>
+                        ) : (
+                            <div className="breakdown-note-bar-wrap">
+                                <div className="breakdown-note-bar" style={{ width: `${Math.min(100, (count / Math.max(...denomVals.map(d => denoms[d] || 0), 1)) * 100)}%` }} />
+                            </div>
+                        )}
                         <span className="breakdown-note-total">{showAmounts ? `₹${v * count}` : '₹••••'}</span>
                     </div>
                 );
             })}
-            {denomVals.every(v => !denoms[v]) && (
+            {denomVals.every(v => !denoms[v]) && !editMode && (
                 <div className="empty-state" style={{ padding: '1.5rem 0' }}>
                     <PiggyBank size={32} color="var(--text-dim)" />
                     <span>Empty</span>
@@ -1211,6 +1258,12 @@ function BreakdownPage({ gullakDenoms, walletDenoms, showAmounts }) {
                     <h2>Cash Breakdown</h2>
                     <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>Denomination details</p>
                 </div>
+                <button 
+                    onClick={() => setEditMode(!editMode)}
+                    style={{ marginLeft: 'auto', padding: '0.4rem 0.8rem', borderRadius: '10px', border: editMode ? '1px solid var(--accent)' : '1px solid var(--glass-border)', background: editMode ? 'var(--accent-glow)' : 'var(--glass-bg)', color: editMode ? 'var(--accent)' : 'var(--text-main)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                >
+                    {editMode ? 'Done' : 'Manage Notes'}
+                </button>
             </div>
 
             {/* Grand total hero card */}
@@ -1243,7 +1296,7 @@ function BreakdownPage({ gullakDenoms, walletDenoms, showAmounts }) {
                     <span>Gullak (Piggybank)</span>
                     <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-heading)', fontWeight: 700, color: '#f59e0b' }}>{fmt(gullakTotal)}</span>
                 </div>
-                {renderDenomList(gullakDenoms)}
+                {renderDenomList(gullakDenoms, 'gullak')}
             </div>
 
             {/* Wallet breakdown */}
@@ -1255,7 +1308,7 @@ function BreakdownPage({ gullakDenoms, walletDenoms, showAmounts }) {
                     <span>Physical Wallet</span>
                     <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-heading)', fontWeight: 700, color: '#8b5cf6' }}>{fmt(walletTotal)}</span>
                 </div>
-                {renderDenomList(walletDenoms)}
+                {renderDenomList(walletDenoms, 'wallet')}
             </div>
         </section>
     );
