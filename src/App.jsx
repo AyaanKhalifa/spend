@@ -413,11 +413,13 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
     const [category, setCategory] = useState('upi');
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
+    const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
     const [denoms, setDenoms] = useState({ 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '' });
 
     const isDenomAccount = (acc) => acc === 'gullak' || acc === 'wallet';
     const isDenomInvolved = () => type === 'transfer' ? isDenomAccount(fromAccount) || isDenomAccount(toAccount) : isDenomAccount(account);
     const calcDenomTotal = () => Object.entries(denoms).reduce((t, [v, c]) => t + parseInt(v) * (parseInt(c) || 0), 0);
+    const calcDenomBalance = (denomObj) => Object.entries(denomObj).reduce((s, [v, c]) => s + parseInt(v) * c, 0);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -436,17 +438,41 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
             const isWithdrawWallet = (type === 'expense' && account === 'wallet') || (type === 'transfer' && fromAccount === 'wallet');
             const isDepositWallet = (type === 'deposit' && account === 'wallet') || (type === 'transfer' && toAccount === 'wallet');
 
-            if (isWithdrawGullak) for (let [v, c] of Object.entries(denoms)) if ((parseInt(c)||0) > gullakDenoms[v]) { alert(`Not enough ₹${v} in Gullak.`); return; }
-            if (isWithdrawWallet) for (let [v, c] of Object.entries(denoms)) if ((parseInt(c)||0) > walletDenoms[v]) { alert(`Not enough ₹${v} in Wallet.`); return; }
+            // Validate total available balance (not per-denomination) to allow change/exchange scenarios
+            if (isWithdrawGullak) {
+                const gullakTotal = calcDenomBalance(gullakDenoms);
+                if (finalAmount > gullakTotal) { alert(`Not enough balance in Gullak. Available: ₹${gullakTotal}`); return; }
+            }
+            if (isWithdrawWallet) {
+                const walletTotal = calcDenomBalance(walletDenoms);
+                if (finalAmount > walletTotal) { alert(`Not enough balance in Wallet. Available: ₹${walletTotal}`); return; }
+            }
 
+            // For withdrawal, apply greedy change algorithm to deduct denominations automatically
             let updG = { ...gullakDenoms }, updW = { ...walletDenoms };
-            for (let [v, c] of Object.entries(denoms)) {
-                let count = parseInt(c) || 0;
-                txDenoms[v] = count;
-                if (isDepositGullak) updG[v] += count;
-                if (isWithdrawGullak) updG[v] -= count;
-                if (isDepositWallet) updW[v] += count;
-                if (isWithdrawWallet) updW[v] -= count;
+            if (isWithdrawGullak || isWithdrawWallet) {
+                const sourceD = isWithdrawGullak ? updG : updW;
+                let remaining = finalAmount;
+                const denomVals = [500, 200, 100, 50, 20, 10, 5, 2, 1];
+                for (let v of denomVals) {
+                    if (remaining <= 0) break;
+                    const use = Math.min(Math.floor(remaining / v), sourceD[v]);
+                    sourceD[v] -= use;
+                    txDenoms[v] = (txDenoms[v] || 0) + use;
+                    remaining -= use * v;
+                }
+                if (remaining > 0) {
+                    alert(`Cannot make exact change. Need ₹${remaining} more in smaller denominations.`);
+                    return;
+                }
+            } else {
+                // Deposits: use entered denominations as-is
+                for (let [v, c] of Object.entries(denoms)) {
+                    let count = parseInt(c) || 0;
+                    txDenoms[v] = count;
+                    if (isDepositGullak) updG[v] += count;
+                    if (isDepositWallet) updW[v] += count;
+                }
             }
 
             if (useFirebase) {
@@ -461,8 +487,13 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
             if (!finalAmount || finalAmount <= 0) { alert("Please enter a valid amount."); return; }
         }
 
+        // Build date from user-selected date (preserve time as now for ordering)
+        const selectedDate = new Date(txDate);
+        const now = new Date();
+        selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
         const tx = {
-            type, amount: finalAmount, note: note.trim(), date: new Date().toISOString(),
+            type, amount: finalAmount, note: note.trim(), date: selectedDate.toISOString(),
             denoms: isDenomInvolved() ? txDenoms : null
         };
         if (type === 'transfer') { tx.fromAccount = fromAccount; tx.toAccount = toAccount; }
@@ -549,22 +580,42 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
                     </div>
                 ) : (
                     <div className="form-group">
-                        <label>Denomination Breakdown</label>
-                        <div className="denominations-grid">
-                            {[500, 200, 100, 50, 20, 10, 5, 2, 1].map(v => (
-                                <div className="denom-item" key={v}>
-                                    <span>₹{v}</span>
-                                    <input type="number" min="0" value={denoms[v]} onChange={e => setDenoms(p => ({ ...p, [v]: e.target.value }))} />
+                        <label>
+                            {(type === 'expense' || (type === 'transfer' && (isDenomAccount(fromAccount))))
+                                ? 'Amount to Spend (₹) — change handled automatically'
+                                : 'Denomination Breakdown'}
+                        </label>
+                        {(type === 'expense' || (type === 'transfer' && isDenomAccount(fromAccount))) ? (
+                            // For withdrawals: just enter total amount, system handles change
+                            <input type="number" min="1" step="any" placeholder="0.00"
+                                value={amount}
+                                onChange={e => { setAmount(e.target.value); }}
+                            />
+                        ) : (
+                            // For deposits: enter per-denomination counts
+                            <>
+                                <div className="denominations-grid">
+                                    {[500, 200, 100, 50, 20, 10, 5, 2, 1].map(v => (
+                                        <div className="denom-item" key={v}>
+                                            <span>₹{v}</span>
+                                            <input type="number" min="0" value={denoms[v]} onChange={e => setDenoms(p => ({ ...p, [v]: e.target.value }))} />
+                                        </div>
+                                    ))}
                                 </div>
-                            ))}
-                        </div>
-                        <div className="denom-total">Total: ₹{calcDenomTotal()}</div>
+                                <div className="denom-total">Total: ₹{calcDenomTotal()}</div>
+                            </>
+                        )}
                     </div>
                 )}
 
                 <div className="form-group">
                     <label>Note (Required)</label>
                     <textarea rows="2" placeholder="What was this for?" value={note} onChange={e => setNote(e.target.value)} required />
+                </div>
+
+                <div className="form-group">
+                    <label>Date</label>
+                    <input type="date" value={txDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setTxDate(e.target.value)} />
                 </div>
 
                 <button type="submit" className="submit-btn">
@@ -584,10 +635,12 @@ function DebtForm({ transactions, setTransactions, gullakDenoms, setGullakDenoms
     const [account, setAccount] = useState('bank');
     const [amount, setAmount] = useState('');
     const [note, setNote] = useState('');
+    const [txDate, setTxDate] = useState(new Date().toISOString().slice(0, 10));
     const [denoms, setDenoms] = useState({ 500: '', 200: '', 100: '', 50: '', 20: '', 10: '', 5: '', 2: '', 1: '' });
 
     const isDenomAccount = (acc) => acc === 'gullak' || acc === 'wallet';
     const calcDenomTotal = () => Object.entries(denoms).reduce((t, [v, c]) => t + parseInt(v) * (parseInt(c) || 0), 0);
+    const calcDenomBalance = (denomObj) => Object.entries(denomObj).reduce((s, [v, c]) => s + parseInt(v) * c, 0);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -597,40 +650,77 @@ function DebtForm({ transactions, setTransactions, gullakDenoms, setGullakDenoms
         let txDenoms = {};
 
         if (isDenomAccount(account)) {
-            finalAmount = calcDenomTotal();
-            if (finalAmount === 0) { alert("Please enter at least one denomination."); return; }
-
             const isWithdrawing = type === 'lend' || type === 'repay_borrow';
             const isDepositing = type === 'borrow' || type === 'repay_lend';
 
             if (isWithdrawing) {
-                for (let [v, c] of Object.entries(denoms)) {
-                    let count = parseInt(c) || 0;
-                    if (account === 'gullak' && count > gullakDenoms[v]) { alert(`Not enough ₹${v} in Gullak.`); return; }
-                    if (account === 'wallet' && count > walletDenoms[v]) { alert(`Not enough ₹${v} in Wallet.`); return; }
+                // Withdrawal: user enters total amount, system handles change automatically
+                finalAmount = parseFloat(amount);
+                if (!finalAmount || finalAmount <= 0) { alert("Please enter a valid amount."); return; }
+
+                const sourceBalance = account === 'gullak' ? calcDenomBalance(gullakDenoms) : calcDenomBalance(walletDenoms);
+                if (finalAmount > sourceBalance) {
+                    alert(`Not enough balance in ${account === 'gullak' ? 'Gullak' : 'Wallet'}. Available: ₹${sourceBalance}`);
+                    return;
                 }
-            }
 
-            let updG = { ...gullakDenoms }, updW = { ...walletDenoms };
-            for (let [v, c] of Object.entries(denoms)) {
-                let count = parseInt(c) || 0; txDenoms[v] = count;
-                if (account === 'gullak') { if (isDepositing) updG[v] += count; if (isWithdrawing) updG[v] -= count; }
-                if (account === 'wallet') { if (isDepositing) updW[v] += count; if (isWithdrawing) updW[v] -= count; }
-            }
+                let sourceD = account === 'gullak' ? { ...gullakDenoms } : { ...walletDenoms };
+                let remaining = finalAmount;
+                const denomVals = [500, 200, 100, 50, 20, 10, 5, 2, 1];
+                for (let v of denomVals) {
+                    if (remaining <= 0) break;
+                    const use = Math.min(Math.floor(remaining / v), sourceD[v]);
+                    sourceD[v] -= use;
+                    txDenoms[v] = (txDenoms[v] || 0) + use;
+                    remaining -= use * v;
+                }
+                if (remaining > 0) {
+                    alert(`Cannot make exact change. Need ₹${remaining} more in smaller denominations.`);
+                    return;
+                }
 
-            if (useFirebase) {
-                if (account === 'gullak') await db.collection("settings").doc("gullak").set(updG);
-                if (account === 'wallet') await db.collection("settings").doc("wallet").set(updW);
+                let updG = { ...gullakDenoms }, updW = { ...walletDenoms };
+                if (account === 'gullak') updG = sourceD;
+                if (account === 'wallet') updW = sourceD;
+
+                if (useFirebase) {
+                    if (account === 'gullak') await db.collection("settings").doc("gullak").set(updG);
+                    if (account === 'wallet') await db.collection("settings").doc("wallet").set(updW);
+                } else {
+                    if (account === 'gullak') { setGullakDenoms(updG); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(updG)); }
+                    if (account === 'wallet') { setWalletDenoms(updW); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(updW)); }
+                }
             } else {
-                if (account === 'gullak') { setGullakDenoms(updG); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(updG)); }
-                if (account === 'wallet') { setWalletDenoms(updW); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(updW)); }
+                // Deposit: user enters denominations
+                finalAmount = calcDenomTotal();
+                if (finalAmount === 0) { alert("Please enter at least one denomination."); return; }
+
+                let updG = { ...gullakDenoms }, updW = { ...walletDenoms };
+                for (let [v, c] of Object.entries(denoms)) {
+                    let count = parseInt(c) || 0; txDenoms[v] = count;
+                    if (account === 'gullak') updG[v] += count;
+                    if (account === 'wallet') updW[v] += count;
+                }
+
+                if (useFirebase) {
+                    if (account === 'gullak') await db.collection("settings").doc("gullak").set(updG);
+                    if (account === 'wallet') await db.collection("settings").doc("wallet").set(updW);
+                } else {
+                    if (account === 'gullak') { setGullakDenoms(updG); localStorage.setItem('spendTracker_gullakDenoms', JSON.stringify(updG)); }
+                    if (account === 'wallet') { setWalletDenoms(updW); localStorage.setItem('spendTracker_walletDenoms', JSON.stringify(updW)); }
+                }
             }
         } else {
             finalAmount = parseFloat(amount);
             if (!finalAmount || finalAmount <= 0) { alert("Please enter a valid amount."); return; }
         }
 
-        const tx = { type, account, amount: finalAmount, note: note.trim(), date: new Date().toISOString(), denoms: isDenomAccount(account) ? txDenoms : null };
+        // Build date from user-selected date
+        const selectedDate = new Date(txDate);
+        const now = new Date();
+        selectedDate.setHours(now.getHours(), now.getMinutes(), now.getSeconds());
+
+        const tx = { type, account, amount: finalAmount, note: note.trim(), date: selectedDate.toISOString(), denoms: isDenomAccount(account) ? txDenoms : null };
 
         if (useFirebase) { await db.collection("transactions").add(tx); }
         else { tx.id = Date.now().toString(); const upd = [tx, ...transactions]; setTransactions(upd); localStorage.setItem('spendTracker_txs', JSON.stringify(upd)); }
@@ -678,14 +768,15 @@ function DebtForm({ transactions, setTransactions, gullakDenoms, setGullakDenoms
                     </select>
                 </div>
 
-                {!isDenomAccount(account) ? (
+                {/* Withdrawal from denom account: enter amount only */}
+                {isDenomAccount(account) && (type === 'lend' || type === 'repay_borrow') ? (
                     <div className="form-group">
-                        <label>Amount (₹)</label>
+                        <label>Amount to Withdraw (₹) — change handled automatically</label>
                         <input type="number" min="1" step="any" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
                     </div>
-                ) : (
+                ) : isDenomAccount(account) ? (
                     <div className="form-group">
-                        <label>Denomination Breakdown</label>
+                        <label>Denomination Breakdown (Depositing)</label>
                         <div className="denominations-grid">
                             {[500, 200, 100, 50, 20, 10, 5, 2, 1].map(v => (
                                 <div className="denom-item" key={v}>
@@ -696,11 +787,21 @@ function DebtForm({ transactions, setTransactions, gullakDenoms, setGullakDenoms
                         </div>
                         <div className="denom-total">Total: ₹{calcDenomTotal()}</div>
                     </div>
+                ) : (
+                    <div className="form-group">
+                        <label>Amount (₹)</label>
+                        <input type="number" min="1" step="any" placeholder="0.00" value={amount} onChange={e => setAmount(e.target.value)} />
+                    </div>
                 )}
 
                 <div className="form-group">
                     <label>Person's Name / Note</label>
                     <textarea rows="2" placeholder="e.g. John Doe - Lunch money" value={note} onChange={e => setNote(e.target.value)} required />
+                </div>
+
+                <div className="form-group">
+                    <label>Date</label>
+                    <input type="date" value={txDate} max={new Date().toISOString().slice(0, 10)} onChange={e => setTxDate(e.target.value)} />
                 </div>
 
                 <button type="submit" className="submit-btn" style={{ background: `linear-gradient(135deg, ${debtColor}, ${type.includes('lend') ? '#fb923c' : '#a855f7'})` }}>
