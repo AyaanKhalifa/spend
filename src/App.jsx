@@ -1074,14 +1074,14 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
                 <div className="report-stat-card spent">
                     <div className="report-stat-icon">📉</div>
                     <div>
-                        <span>Total Spent</span>
+                        <span>Spent</span>
                         <strong>{fmt(periodSpent)}</strong>
                     </div>
                 </div>
                 <div className="report-stat-card collected">
                     <div className="report-stat-icon">📈</div>
                     <div>
-                        <span>Total Income</span>
+                        <span>Income</span>
                         <strong>{fmt(periodCollected)}</strong>
                     </div>
                 </div>

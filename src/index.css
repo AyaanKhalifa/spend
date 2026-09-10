@@ -112,8 +112,7 @@ body {
     background-color: var(--bg-color);
     color: var(--text-main);
     min-height: 100vh;
-    display: flex;
-    justify-content: center;
+    display: block;
     position: relative;
     transition: background-color 0.4s ease, color 0.4s ease;
     padding-bottom: 0;
@@ -166,6 +165,7 @@ body::after {
 .app-container {
     width: 100%;
     max-width: 480px;
+    margin: 0 auto;
     z-index: 10;
     position: relative;
     padding-bottom: calc(6rem + env(safe-area-inset-bottom));
