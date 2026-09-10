@@ -98,6 +98,13 @@ body.gold {
     box-sizing: border-box;
     margin: 0;
     padding: 0;
+    -webkit-tap-highlight-color: transparent;
+}
+
+html, body {
+    overflow-x: hidden;
+    width: 100%;
+    max-width: 100vw;
 }
 
 body {
@@ -107,7 +114,6 @@ body {
     min-height: 100vh;
     display: flex;
     justify-content: center;
-    overflow-x: hidden;
     position: relative;
     transition: background-color 0.4s ease, color 0.4s ease;
     padding-bottom: 0;
@@ -162,8 +168,10 @@ body::after {
     max-width: 480px;
     z-index: 10;
     position: relative;
-    padding-bottom: 6.5rem;
+    padding-bottom: calc(6rem + env(safe-area-inset-bottom));
+    padding-top: env(safe-area-inset-top);
     min-height: 100vh;
+    overflow-x: hidden;
 }
 
 /* ============================================
@@ -1043,34 +1051,38 @@ textarea { resize: none; line-height: 1.5; }
     -webkit-backdrop-filter: blur(30px);
     border-top: 1px solid var(--glass-border);
     display: flex;
-    justify-content: space-around;
-    padding: 0.6rem 0.5rem;
-    padding-bottom: max(0.6rem, env(safe-area-inset-bottom));
+    justify-content: space-between;
+    padding: 0.5rem 0.2rem;
+    padding-bottom: max(0.5rem, env(safe-area-inset-bottom));
     z-index: 1000;
+    width: 100%;
 }
 
 .nav-item {
+    flex: 1;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
     color: var(--text-dim);
-    font-size: 0.62rem;
+    font-size: 0.55rem;
     font-weight: 600;
     cursor: pointer;
     transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
     background: none;
     border: none;
-    padding: 0.4rem 0.6rem;
+    padding: 0.4rem 0.1rem;
     border-radius: 12px;
-    gap: 0.25rem;
-    min-width: 56px;
+    gap: 0.2rem;
+    min-width: 0;
     text-transform: uppercase;
-    letter-spacing: 0.5px;
+    letter-spacing: 0;
+    white-space: nowrap;
 }
 
 .nav-item svg {
-    width: 22px;
-    height: 22px;
+    width: 20px;
+    height: 20px;
     stroke-width: 1.8;
     transition: all 0.25s ease;
 }
@@ -1487,15 +1499,18 @@ textarea { resize: none; line-height: 1.5; }
    RESPONSIVE
    ============================================ */
 @media (min-width: 480px) {
-    .app-container { padding-top: 0; }
+    .app-container { padding-top: 2rem; }
 }
 
-@media (max-width: 380px) {
+@media (max-width: 430px) {
     .balance-grid { grid-template-columns: repeat(2, 1fr); }
-    .pin-keypad { max-width: 220px; gap: 0.6rem; }
+    .denominations-grid { grid-template-columns: repeat(3, 1fr); gap: 0.4rem; }
+    .pin-keypad { max-width: 240px; gap: 0.8rem; }
     .report-summary-row { grid-template-columns: 1fr 1fr; }
     .report-summary-row .report-stat-card:last-child { grid-column: 1 / -1; }
     .report-filter-grid { grid-template-columns: 1fr; }
+    .nav-item { font-size: 0.5rem; padding: 0.3rem 0; }
+    .nav-item svg { width: 18px; height: 18px; }
 }
 
 /* ============================================
