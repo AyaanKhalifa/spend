@@ -444,13 +444,18 @@ function TransactionForm({ transactions, setTransactions, gullakDenoms, setGulla
         let txDenoms = {};
 
         if (isDenomInvolved()) {
-            finalAmount = calcDenomTotal();
-            if (finalAmount === 0) { alert("Please enter at least one denomination."); return; }
-
             const isWithdrawGullak = (type === 'expense' && account === 'gullak') || (type === 'transfer' && fromAccount === 'gullak');
             const isDepositGullak = (type === 'deposit' && account === 'gullak') || (type === 'transfer' && toAccount === 'gullak');
             const isWithdrawWallet = (type === 'expense' && account === 'wallet') || (type === 'transfer' && fromAccount === 'wallet');
             const isDepositWallet = (type === 'deposit' && account === 'wallet') || (type === 'transfer' && toAccount === 'wallet');
+
+            if (isWithdrawGullak || isWithdrawWallet) {
+                finalAmount = parseFloat(amount);
+                if (!finalAmount || finalAmount <= 0) { alert("Please enter a valid amount."); return; }
+            } else {
+                finalAmount = calcDenomTotal();
+                if (finalAmount === 0) { alert("Please enter at least one denomination."); return; }
+            }
 
             // Validate total available balance (not per-denomination) to allow change/exchange scenarios
             if (isWithdrawGullak) {
