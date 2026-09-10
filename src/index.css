@@ -1222,6 +1222,268 @@ textarea { resize: none; line-height: 1.5; }
 }
 
 /* ============================================
+   REPORT PAGE — RESPONSIVE IMPROVEMENTS
+   ============================================ */
+.report-summary-row {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+}
+
+.report-stat-card {
+    background: var(--glass-bg);
+    border: 1px solid var(--glass-border);
+    border-radius: 14px;
+    padding: 0.8rem 0.7rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.report-stat-card.spent {
+    background: var(--expense-bg);
+    border-color: var(--expense-glow);
+}
+.report-stat-card.spent span { color: var(--expense); }
+.report-stat-card.spent strong { color: var(--expense); }
+
+.report-stat-card.collected {
+    background: var(--deposit-bg);
+    border-color: var(--deposit-glow);
+}
+.report-stat-card.collected span { color: var(--deposit); }
+.report-stat-card.collected strong { color: var(--deposit); }
+
+.report-stat-card.net span { color: var(--text-muted); }
+
+.report-stat-icon {
+    font-size: 1rem;
+    flex-shrink: 0;
+}
+
+.report-stat-card span {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: var(--text-muted);
+    white-space: nowrap;
+}
+
+.report-stat-card strong {
+    display: block;
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 800;
+    color: var(--text-main);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.report-filters-card {
+    margin-bottom: 1rem;
+    padding: 1rem !important;
+}
+
+.report-filter-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.6rem;
+}
+
+.tx-meta-row {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+}
+
+.tx-account-tag {
+    font-size: 0.73rem;
+    color: var(--text-muted);
+    text-transform: capitalize;
+}
+
+.tx-date-tag {
+    font-size: 0.68rem;
+    color: var(--text-dim);
+}
+
+/* ============================================
+   BREAKDOWN PAGE
+   ============================================ */
+.breakdown-page {
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+}
+
+.breakdown-hero-card {
+    background: linear-gradient(135deg, rgba(245,158,11,0.12), rgba(139,92,246,0.12));
+    border: 1px solid var(--glass-border);
+    border-radius: var(--card-radius);
+    padding: 1.2rem;
+    margin-bottom: 1rem;
+    backdrop-filter: blur(20px);
+}
+
+.breakdown-hero-row {
+    display: flex;
+    align-items: stretch;
+    gap: 0;
+    margin-bottom: 1rem;
+}
+
+.breakdown-hero-item {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.5rem;
+}
+
+.breakdown-hero-item span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--text-muted);
+}
+
+.breakdown-hero-item strong {
+    font-family: var(--font-heading);
+    font-size: 1.5rem;
+    font-weight: 800;
+}
+
+.gullak-hero strong { color: #f59e0b; }
+.wallet-hero strong { color: #8b5cf6; }
+
+.bhi-icon {
+    width: 38px;
+    height: 38px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 0.2rem;
+}
+
+.gullak-hero .bhi-icon { background: rgba(245,158,11,0.15); }
+.wallet-hero .bhi-icon { background: rgba(139,92,246,0.15); }
+
+.breakdown-hero-divider {
+    width: 1px;
+    background: var(--glass-border);
+    align-self: stretch;
+    margin: 0.3rem 0;
+}
+
+.breakdown-grand-total {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.8rem 1rem;
+    background: var(--glass-bg);
+    border-radius: 12px;
+    border: 1px solid var(--glass-border);
+}
+
+.breakdown-grand-total span {
+    font-size: 0.78rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-muted);
+}
+
+.breakdown-grand-total strong {
+    font-family: var(--font-heading);
+    font-size: 1.4rem;
+    font-weight: 800;
+    color: var(--accent);
+}
+
+.breakdown-section-card {
+    margin-bottom: 1rem;
+}
+
+.breakdown-section-title {
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+    margin-bottom: 1rem;
+    padding-bottom: 0.8rem;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.breakdown-section-title span {
+    font-family: var(--font-heading);
+    font-size: 0.95rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.breakdown-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+}
+
+.breakdown-denom-row {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.breakdown-note-badge {
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+    min-width: 80px;
+}
+
+.bdn-value {
+    font-family: var(--font-heading);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text-main);
+}
+
+.bdn-times {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.breakdown-note-bar-wrap {
+    flex: 1;
+    height: 6px;
+    background: var(--glass-bg-hover);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.breakdown-note-bar {
+    height: 100%;
+    background: linear-gradient(90deg, var(--accent), var(--accent-2));
+    border-radius: 3px;
+    transition: width 0.6s ease;
+}
+
+.breakdown-note-total {
+    font-family: var(--font-heading);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--accent);
+    min-width: 60px;
+    text-align: right;
+}
+
+/* ============================================
    RESPONSIVE
    ============================================ */
 @media (min-width: 480px) {
@@ -1231,6 +1493,9 @@ textarea { resize: none; line-height: 1.5; }
 @media (max-width: 380px) {
     .balance-grid { grid-template-columns: repeat(2, 1fr); }
     .pin-keypad { max-width: 220px; gap: 0.6rem; }
+    .report-summary-row { grid-template-columns: 1fr 1fr; }
+    .report-summary-row .report-stat-card:last-child { grid-column: 1 / -1; }
+    .report-filter-grid { grid-template-columns: 1fr; }
 }
 
 /* ============================================

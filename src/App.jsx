@@ -9,7 +9,8 @@ import {
     Home, PlusCircle, Users, BarChart2, FileText, Settings,
     Eye, EyeOff, Trash2, Download, ArrowRightLeft, TrendingUp,
     TrendingDown, Wallet, Landmark, PiggyBank, UserCheck, HandCoins,
-    ShieldCheck, Sun, Moon, Palette, Lock, ChevronRight, CheckCircle
+    ShieldCheck, Sun, Moon, Palette, Lock, ChevronRight, CheckCircle,
+    Layers
 } from 'lucide-react';
 
 // Firebase Configuration
@@ -212,6 +213,14 @@ export default function App() {
                     />
                 )}
 
+                {currentTab === 'breakdown' && (
+                    <BreakdownPage
+                        gullakDenoms={gullakDenoms}
+                        walletDenoms={walletDenoms}
+                        showAmounts={showAmounts}
+                    />
+                )}
+
                 {currentTab === 'settings' && (
                     <SettingsPage
                         theme={theme}
@@ -310,12 +319,13 @@ function PinOverlay({ currentPin, onAuth }) {
 // ============================================
 function BottomNav({ currentTab, setCurrentTab }) {
     const tabs = [
-        { id: 'dashboard', icon: <Home size={22} />, label: 'Home' },
-        { id: 'transaction', icon: <PlusCircle size={22} />, label: 'Transact' },
-        { id: 'debt', icon: <Users size={22} />, label: 'Debts' },
-        { id: 'analytics', icon: <BarChart2 size={22} />, label: 'Analytics' },
-        { id: 'report', icon: <FileText size={22} />, label: 'Report' },
-        { id: 'settings', icon: <Settings size={22} />, label: 'Settings' },
+        { id: 'dashboard', icon: <Home size={20} />, label: 'Home' },
+        { id: 'transaction', icon: <PlusCircle size={20} />, label: 'Add' },
+        { id: 'debt', icon: <Users size={20} />, label: 'Debts' },
+        { id: 'breakdown', icon: <Layers size={20} />, label: 'Breakdown' },
+        { id: 'analytics', icon: <BarChart2 size={20} />, label: 'Charts' },
+        { id: 'report', icon: <FileText size={20} />, label: 'Report' },
+        { id: 'settings', icon: <Settings size={20} />, label: 'Settings' },
     ];
 
     return (
@@ -942,6 +952,7 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
     const [endDate, setEndDate] = useState('');
     const [filterType, setFilterType] = useState('all');
     const [filterAccount, setFilterAccount] = useState('all');
+    const [searchNote, setSearchNote] = useState('');
 
     const filteredTransactions = transactions.filter(tx => {
         const txDate = new Date(tx.date).getTime();
@@ -955,6 +966,7 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
             if (tx.type === 'transfer') { if (tx.fromAccount !== filterAccount && tx.toAccount !== filterAccount) return false; }
             else if (tx.account !== filterAccount) return false;
         }
+        if (searchNote && !tx.note?.toLowerCase().includes(searchNote.toLowerCase())) return false;
         return true;
     }).sort((a, b) => new Date(b.date) - new Date(a.date));
 
@@ -1026,28 +1038,66 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
 
     return (
         <section className="history-section">
+            {/* Header */}
             <div className="section-header">
                 <div className="section-icon"><FileText size={18} color="#fff" /></div>
-                <h2>Report</h2>
+                <div>
+                    <h2>Report</h2>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>{filteredTransactions.length} transaction{filteredTransactions.length !== 1 ? 's' : ''}</p>
+                </div>
                 <button onClick={handleDownload} className="download-btn" style={{ marginLeft: 'auto' }}>
                     <Download size={14} /> CSV
                 </button>
             </div>
 
-            <div className="glass-panel" style={{ marginBottom: '1rem', padding: '1rem' }}>
-                <div className="filters-container" style={{ background: 'transparent', padding: 0, border: 'none' }}>
+            {/* Summary always visible */}
+            <div className="report-summary-row">
+                <div className="report-stat-card spent">
+                    <div className="report-stat-icon">📉</div>
+                    <div>
+                        <span>Total Spent</span>
+                        <strong>{fmt(periodSpent)}</strong>
+                    </div>
+                </div>
+                <div className="report-stat-card collected">
+                    <div className="report-stat-icon">📈</div>
+                    <div>
+                        <span>Total Income</span>
+                        <strong>{fmt(periodCollected)}</strong>
+                    </div>
+                </div>
+                <div className="report-stat-card net" style={{ background: (periodCollected - periodSpent) >= 0 ? 'var(--deposit-bg)' : 'var(--expense-bg)', borderColor: (periodCollected - periodSpent) >= 0 ? 'var(--deposit-glow)' : 'var(--expense-glow)' }}>
+                    <div className="report-stat-icon">{(periodCollected - periodSpent) >= 0 ? '✅' : '⚠️'}</div>
+                    <div>
+                        <span>Net</span>
+                        <strong style={{ color: (periodCollected - periodSpent) >= 0 ? 'var(--deposit)' : 'var(--expense)' }}>{fmt(periodCollected - periodSpent)}</strong>
+                    </div>
+                </div>
+            </div>
+
+            {/* Filters */}
+            <div className="report-filters-card glass-panel">
+                {/* Search */}
+                <input
+                    type="text"
+                    placeholder="🔍  Search notes..."
+                    value={searchNote}
+                    onChange={e => setSearchNote(e.target.value)}
+                    style={{ marginBottom: '0.8rem' }}
+                />
+                <div className="report-filter-grid">
                     <div className="date-filter">
-                        <label>From</label>
+                        <label>From Date</label>
                         <input type="date" value={startDate} onChange={e => setStartDate(e.target.value)} />
                     </div>
                     <div className="date-filter">
-                        <label>To</label>
+                        <label>To Date</label>
                         <input type="date" value={endDate} onChange={e => setEndDate(e.target.value)} />
                     </div>
                     <div className="date-filter">
                         <label>Type</label>
                         <select value={filterType} onChange={e => setFilterType(e.target.value)}>
-                            <option value="all">All</option>
+                            <option value="all">All Types</option>
                             <option value="expense">Expense</option>
                             <option value="deposit">Deposit</option>
                             <option value="transfer">Transfer</option>
@@ -1057,7 +1107,7 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
                     <div className="date-filter">
                         <label>Account</label>
                         <select value={filterAccount} onChange={e => setFilterAccount(e.target.value)}>
-                            <option value="all">All</option>
+                            <option value="all">All Accounts</option>
                             <option value="bank">Bank</option>
                             <option value="gullak">Gullak</option>
                             <option value="wallet">Wallet</option>
@@ -1065,21 +1115,18 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
                         </select>
                     </div>
                 </div>
+                {/* Quick clear */}
+                {(startDate || endDate || filterType !== 'all' || filterAccount !== 'all' || searchNote) && (
+                    <button
+                        onClick={() => { setStartDate(''); setEndDate(''); setFilterType('all'); setFilterAccount('all'); setSearchNote(''); }}
+                        style={{ marginTop: '0.6rem', width: '100%', padding: '0.5rem', background: 'var(--expense-bg)', border: '1px solid var(--expense-glow)', borderRadius: '10px', color: 'var(--expense)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer' }}
+                    >
+                        ✕ Clear All Filters
+                    </button>
+                )}
             </div>
 
-            {(startDate || endDate) && (
-                <div className="summary-card">
-                    <div className="summary-stat spent">
-                        <span>Period Spent</span>
-                        <strong>{fmt(periodSpent)}</strong>
-                    </div>
-                    <div className="summary-stat collected">
-                        <span>Period Collected</span>
-                        <strong>{fmt(periodCollected)}</strong>
-                    </div>
-                </div>
-            )}
-
+            {/* Transaction list */}
             <div className="history-list">
                 {filteredTransactions.length === 0 ? (
                     <div className="empty-state"><FileText size={40} color="var(--text-dim)" /><span>No transactions found</span></div>
@@ -1088,6 +1135,9 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
                     const accText = isTransfer ? `${tx.fromAccount} → ${tx.toAccount}` : tx.account;
                     const catText = tx.category ? ` · ${tx.category}` : tx.type.includes('lend') || tx.type.includes('borrow') ? ' · Debt' : '';
                     const sign = ['expense','lend','repay_borrow'].includes(tx.type) ? '-' : ['deposit','borrow','repay_lend'].includes(tx.type) ? '+' : '⇄';
+                    const d = new Date(tx.date);
+                    const dateStr = d.toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' });
+                    const timeStr = d.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', hour12: true });
 
                     return (
                         <div key={tx.id} className={`transaction-item`}>
@@ -1096,7 +1146,10 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
                             </div>
                             <div className="tx-info">
                                 <h4>{tx.note}</h4>
-                                <p>{accText}{catText} · {new Date(tx.date).toLocaleDateString('en-IN', { day: '2-digit', month: 'short', year: '2-digit' })}</p>
+                                <p className="tx-meta-row">
+                                    <span className="tx-account-tag">{accText}{catText}</span>
+                                    <span className="tx-date-tag">{dateStr} · {timeStr}</span>
+                                </p>
                             </div>
                             <div className={`tx-amount ${tx.type}`}>
                                 <span>{sign}{fmt(parseFloat(tx.amount))}</span>
@@ -1105,6 +1158,104 @@ function TransactionHistory({ transactions, setTransactions, showAmounts, gullak
                         </div>
                     );
                 })}
+            </div>
+        </section>
+    );
+}
+
+// ============================================
+// BREAKDOWN PAGE
+// ============================================
+function BreakdownPage({ gullakDenoms, walletDenoms, showAmounts }) {
+    const denomVals = [500, 200, 100, 50, 20, 10, 5, 2, 1];
+    const fmt = (a) => showAmounts ? `₹${a}` : '₹••••';
+
+    const gullakTotal = Object.entries(gullakDenoms).reduce((s, [v, c]) => s + parseInt(v) * c, 0);
+    const walletTotal = Object.entries(walletDenoms).reduce((s, [v, c]) => s + parseInt(v) * c, 0);
+    const grandTotal = gullakTotal + walletTotal;
+
+    const renderDenomList = (denoms) => (
+        <div className="breakdown-list">
+            {denomVals.map(v => {
+                const count = denoms[v] || 0;
+                if (!count) return null;
+                return (
+                    <div key={v} className="breakdown-denom-row">
+                        <div className="breakdown-note-badge">
+                            <span className="bdn-value">₹{v}</span>
+                            <span className="bdn-times">× {count}</span>
+                        </div>
+                        <div className="breakdown-note-bar-wrap">
+                            <div className="breakdown-note-bar" style={{ width: `${Math.min(100, (count / Math.max(...denomVals.map(d => denoms[d] || 0), 1)) * 100)}%` }} />
+                        </div>
+                        <span className="breakdown-note-total">{showAmounts ? `₹${v * count}` : '₹••••'}</span>
+                    </div>
+                );
+            })}
+            {denomVals.every(v => !denoms[v]) && (
+                <div className="empty-state" style={{ padding: '1.5rem 0' }}>
+                    <PiggyBank size={32} color="var(--text-dim)" />
+                    <span>Empty</span>
+                </div>
+            )}
+        </div>
+    );
+
+    return (
+        <section className="breakdown-page">
+            <div className="section-header">
+                <div className="section-icon" style={{ background: 'linear-gradient(135deg, #f59e0b, #8b5cf6)' }}>
+                    <Layers size={18} color="#fff" />
+                </div>
+                <div>
+                    <h2>Cash Breakdown</h2>
+                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '1px' }}>Denomination details</p>
+                </div>
+            </div>
+
+            {/* Grand total hero card */}
+            <div className="breakdown-hero-card">
+                <div className="breakdown-hero-row">
+                    <div className="breakdown-hero-item gullak-hero">
+                        <div className="bhi-icon"><PiggyBank size={20} color="#f59e0b" /></div>
+                        <span>Gullak</span>
+                        <strong>{fmt(gullakTotal)}</strong>
+                    </div>
+                    <div className="breakdown-hero-divider" />
+                    <div className="breakdown-hero-item wallet-hero">
+                        <div className="bhi-icon"><Wallet size={20} color="#8b5cf6" /></div>
+                        <span>Wallet</span>
+                        <strong>{fmt(walletTotal)}</strong>
+                    </div>
+                </div>
+                <div className="breakdown-grand-total">
+                    <span>Total Cash</span>
+                    <strong>{fmt(grandTotal)}</strong>
+                </div>
+            </div>
+
+            {/* Gullak breakdown */}
+            <div className="glass-panel breakdown-section-card" style={{ marginBottom: '1rem' }}>
+                <div className="breakdown-section-title">
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <PiggyBank size={15} color="#f59e0b" />
+                    </div>
+                    <span>Gullak (Piggybank)</span>
+                    <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-heading)', fontWeight: 700, color: '#f59e0b' }}>{fmt(gullakTotal)}</span>
+                </div>
+                {renderDenomList(gullakDenoms)}
+            </div>
+
+            {/* Wallet breakdown */}
+            <div className="glass-panel breakdown-section-card">
+                <div className="breakdown-section-title">
+                    <div style={{ width: 28, height: 28, borderRadius: 8, background: 'rgba(139,92,246,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <Wallet size={15} color="#8b5cf6" />
+                    </div>
+                    <span>Physical Wallet</span>
+                    <span style={{ marginLeft: 'auto', fontFamily: 'var(--font-heading)', fontWeight: 700, color: '#8b5cf6' }}>{fmt(walletTotal)}</span>
+                </div>
+                {renderDenomList(walletDenoms)}
             </div>
         </section>
     );
